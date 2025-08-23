@@ -1,0 +1,96 @@
+import mongoose, { Schema } from "mongoose";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import { use } from "react";
+
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    fullName: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
+    avtar: {
+      type: String, //cloudnary url
+      required: true,
+    },
+    coverImage: {
+      type: String,
+    },
+    watchHistory: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Video",
+      },
+    ],
+    password: {
+      type: String,
+      required: [true, "password is require"],
+    },
+    refreshToken: {
+      type: String,
+    },
+  },
+
+  { timestamps: true }
+);
+
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+userSchema.methods.isPasswordCorrect = async function (password) {
+  return await bcrypt.compare(password, this.password);
+};
+
+userSchema.methods.genrateAcessToken = function () {
+  jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      username: this.username,
+      fullname: this.fullname,
+      //payload://this one is comming from  DATA_BASE
+    },
+
+    process.env.ACCESS_TOKEN_SECERET,
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+    }
+  );
+};
+
+userSchema.methods.genrateRefereshToken = function () {
+  jwt.sign(
+    {
+      _id: this._id,
+
+      //payload://this one is comming from  DATA_BASE
+    },
+
+    process.env.REFERESH_TOKEN_SECERET,
+    {
+      expiresIn: process.env.REFERESH_TOKEN_EXPIRY,
+    }
+  );
+};
+export const User = mongoose.model("User", userSchema);
