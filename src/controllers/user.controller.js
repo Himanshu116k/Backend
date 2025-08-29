@@ -211,4 +211,147 @@ try {
 }
 });
 
-export { registereUser, loginUser, logoutUser ,refereshAccessToken};
+const changeCurrentPassword = asynchandler(async(req,res)=>{
+   
+   const {oldpassword,newPassword} = req.body
+  const user = await User.findById ( req.body?._id)
+  const isPasswordCorrect = await user.isPasswordCorrect(oldpassword)
+   if(!isPasswordCorrect){
+    throw new ApiError(400,"Invalid password")
+   }
+   user.password = newPassword 
+   await user.save({validateBeforeSave:false});
+   return res.status(200).json(new ApiReponse(200,{},"Password changed successfully"))
+
+
+
+})
+
+
+const getCurrentUser = asynchandler(async(req,res)=>
+{
+  return res
+  .status(200)
+  .json(200,req.user,"current user fetch successfully")
+})
+
+const updateAccountDetails = asynchandler(async(req,res)=>{
+  const {fullName ,email}= req.body;
+  if(!fullName|| !email){
+    throw new  ApiError(404,"All felilds are required")
+  }
+  const user = await User.findByIdAndUpdate(req.user?._id,
+                        {
+                          $set:{
+                            fullName,
+                            email:email
+                          }
+                        },
+                        {new:true}
+                        ).select("-password ")
+                        return res.status(200).json(new ApiReponse(200,user,"modification is done"))
+})
+
+const updateUserAvatar = asynchandler(async(req,res)=>{
+  const avtarLocationPath = req.file?.path
+  if(!avtarLocationPath) throw new ApiError(400,"Avtar file is required")
+    const avatar = await uplodOnCloudnary(avtarLocationPath);
+    if(!avatar.url) throw new ApiError(400,"Error while uploding the avatar")
+  
+     const user = await User.findByIdAndUpdate(req.user?._id,
+        {
+          $set:{
+            avatar:avatar.url
+          }
+        },
+        {new:true}
+        ).select("-password ")
+        return res.status(200).json(new ApiReponse(200,user,"Avatart is updated"))
+})
+const updateUserCoverimage = asynchandler(async(req,res)=>{
+  const CoverLocationPath = req.file?.path
+  if(!CoverLocationPath) throw new ApiError(400,"cover file is required")
+    const coverImage = await uplodOnCloudnary(CoverLocationPath);
+    if(!coverImage.url) throw new ApiError(400,"Error while uploding the  Cover")
+  
+     const user= await User.findByIdAndUpdate(req.user?._id,
+        {
+          $set:{
+            coverImage:coverImage.url
+          }
+        },
+        {new:true}
+        ).select("-password ")
+        return res.status(200).json(new ApiReponse(200,user,"coverimage is updated"))
+})
+
+
+const getUserChanelProfile = asynchandler(async(req,res)=>{
+const {username}=  req.params
+if(!username) throw new ApiError(400,"username is required")
+  const channel = await User.aggregate([
+   { 
+    $match:{
+        username:username?.toLowerCase()
+            }
+   },
+   {
+      $lookup:{
+             from:"subscriptions"  ,
+             localField:"_id",
+             foreignField:"channel",
+             as:"subscribers"
+              }
+     },
+     {
+         $lookup:{
+            from:"subscriptions"  ,
+             localField:"_id",
+             foreignField:"subscriber",
+             as:"subscribersTo"
+                 }
+     },
+     {
+      $addFields:{
+                 subscribersCount:{
+                     $size:"$subscribers" 
+                    },
+                    channelsSubscribedToCount:{
+                      $size:"$subscribersTo"
+                    },
+                    isSubscribed:{
+                        $cond:{
+                          if:{
+                            $in:[req.user?._id,"$subscribers._id.subscriber"]
+                          },
+                          then:true,
+                          else:false
+                        
+                        }
+                    }
+
+                 }
+     } ,
+     {
+      $project:{
+        fullName:1,
+        username:1,
+        subscribersCount:1,
+        channelsSubscribedToCount:1,
+        isSubscribed:1,
+        avatar:1,
+        coverImage:1,
+        email:1
+
+      }
+     }
+])
+if(!channel?.length){
+   throw new ApiError(404,"Channel dose not exist")
+}
+return res
+  .status(200)
+  new ApiReponse(200,channel[0],"User chanel fetched  successfully")
+})
+
+export { registereUser, loginUser, logoutUser ,refereshAccessToken,changeCurrentPassword,getCurrentUser,updateAccountDetails,updateUserAvatar,updateUserCoverimage,getUserChanelProfile};
